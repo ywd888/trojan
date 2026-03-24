@@ -19,6 +19,16 @@ get_ip() {
     curl -s4m 5 ipv4.icanhazip.com || curl -s6m 5 ipv6.icanhazip.com
 }
 
+check_udp() {
+    PORT="$1"
+    # 检查 UDP 端口是否被监听
+    if ss -u -lnt | grep -q ":$PORT"; then
+        echo "UDP: 已开启"
+    else
+        echo "UDP: 未开启"
+    fi
+}
+
 # ================== 核心操作 ==================
 new_node() {
     echo -e "${BLUE}== 新建/重置节点 ==${PLAIN}"
@@ -42,11 +52,12 @@ new_node() {
 show_link() {
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         IP=$(get_ip)
-        # 匹配官方 install.sh 使用的 -s [::]:端口
         PORT=$(grep -oP '(?<=-s \[::\]:)\d+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
         PASSWORD=$(grep -oP '(?<=-k )[^ ]+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
+        UDP_STATUS=$(check_udp "$PORT")
         LINK="ss://$(echo -n "chacha20-ietf-poly1305:$PASSWORD" | base64 -w0)@$IP:$PORT?#Node-$IP"
         echo -e "${GREEN}当前节点链接: ${PLAIN}$LINK"
+        echo -e "${YELLOW}端口状态: ${PLAIN}TCP 已开启, $UDP_STATUS"
     else
         echo -e "${RED}节点未运行或未创建${PLAIN}"
     fi
