@@ -55,7 +55,7 @@ gen_node() {
         -keyout /etc/sing-box/key.pem -out /etc/sing-box/cert.pem \
         -subj "/CN=$SNI" >/dev/null 2>&1
 
-    # 配置文件，listen 只允许字符串
+    # 写配置文件
     cat > $CONFIG <<EOF
 {
   "log": {"level": "info"},
@@ -77,7 +77,7 @@ EOF
 
     systemctl restart sing-box
 
-    # 防火墙开放 TCP + UDP
+    # 防火墙 TCP+UDP
     if command -v ufw >/dev/null 2>&1; then
         ufw allow $PORT/tcp >/dev/null 2>&1
         ufw allow $PORT/udp >/dev/null 2>&1
@@ -99,7 +99,21 @@ delete_node() {
     echo -e "${RED}节点已删除${PLAIN}"
 }
 
+fix_password() {
+    # 自动检测 config.json 是否密码写死为 "password"
+    if [ -f "$CONFIG" ]; then
+        PW_CURRENT=$(jq -r '.inbounds[0].users[0].password' $CONFIG)
+        if [ "$PW_CURRENT" = "password" ] || [ -z "$PW_CURRENT" ]; then
+            NEWPASS=$(openssl rand -base64 12 | tr -d /=+ | cut -c1-16)
+            jq ".inbounds[0].users[0].password=\"$NEWPASS\"" $CONFIG > /tmp/config.json && mv /tmp/config.json $CONFIG
+            systemctl restart sing-box
+            echo -e "${GREEN}已自动修复密码为: $NEWPASS${PLAIN}"
+        fi
+    fi
+}
+
 show_link() {
+    fix_password
     if [ -f "$CONFIG" ]; then
         P=$(jq '.inbounds[0].listen_port' $CONFIG)
         PW=$(jq -r '.inbounds[0].users[0].password' $CONFIG)
