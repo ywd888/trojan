@@ -18,6 +18,9 @@ check_env() {
     if ! command -v curl >/dev/null 2>&1; then
         apt-get update && apt-get install -y curl || yum install -y curl
     fi
+    if ! command -v jq >/dev/null 2>&1; then
+        apt-get install -y jq || yum install -y jq
+    fi
 }
 
 get_ip() {
@@ -40,7 +43,7 @@ gen_node() {
 
     # 随机密码
     PASS=$(openssl rand -base64 12 | tr -d /=+ | cut -c1-16)
-    
+
     # SNI 输入
     read -p "请输入 SNI (默认 apps.apple.com): " SNI
     SNI=${SNI:-apps.apple.com}
@@ -52,7 +55,7 @@ gen_node() {
         -keyout /etc/sing-box/key.pem -out /etc/sing-box/cert.pem \
         -subj "/CN=$SNI" >/dev/null 2>&1
 
-    # 生成配置文件，注意 listen 只允许字符串
+    # 配置文件，listen 只允许字符串
     cat > $CONFIG <<EOF
 {
   "log": {"level": "info"},
@@ -98,9 +101,9 @@ delete_node() {
 
 show_link() {
     if [ -f "$CONFIG" ]; then
-        P=$(grep 'listen_port' $CONFIG | awk '{print $2}' | tr -d ', ')
-        PW=$(grep 'password' $CONFIG | awk -F'"' '{print $4}')
-        S=$(grep 'server_name' $CONFIG | awk -F'"' '{print $4}')
+        P=$(jq '.inbounds[0].listen_port' $CONFIG)
+        PW=$(jq -r '.inbounds[0].users[0].password' $CONFIG)
+        S=$(jq -r '.inbounds[0].tls.server_name' $CONFIG)
         I=$(get_ip)
         echo -e "${GREEN}trojan://$PW@$I:$P?security=tls&sni=$S&allowInsecure=1#Trojan-$I${PLAIN}"
     else
