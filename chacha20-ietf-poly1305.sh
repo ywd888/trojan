@@ -10,6 +10,7 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 PLAIN='\033[0m'
 
+# ================== 工具函数 ==================
 check_root() {
     [[ $EUID -ne 0 ]] && echo -e "${RED}错误: 必须使用 root 权限运行!${PLAIN}" && exit 1
 }
@@ -21,13 +22,13 @@ get_ip() {
 # ================== 核心操作 ==================
 new_node() {
     echo -e "${BLUE}== 新建/重置节点 ==${PLAIN}"
-    
-    # 调用官方安装脚本
+
+    # 下载官方安装脚本
     echo -e "${BLUE}正在调用官方 install.sh 安装 SSServer...${PLAIN}"
     curl -L "$DOWNLOAD_INSTALL_SH" -o ./install.sh
     chmod +x ./install.sh
     ./install.sh
-    
+
     # 检查服务状态
     sleep 1
     if systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -41,7 +42,8 @@ new_node() {
 show_link() {
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         IP=$(get_ip)
-        PORT=$(grep -oP '(?<=-p )\d+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
+        # 匹配官方 install.sh 使用的 -s [::]:端口
+        PORT=$(grep -oP '(?<=-s \[::\]:)\d+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
         PASSWORD=$(grep -oP '(?<=-k )[^ ]+' <<< "$(systemctl cat $SERVICE_NAME | grep ExecStart)")
         LINK="ss://$(echo -n "chacha20-ietf-poly1305:$PASSWORD" | base64 -w0)@$IP:$PORT?#Node-$IP"
         echo -e "${GREEN}当前节点链接: ${PLAIN}$LINK"
